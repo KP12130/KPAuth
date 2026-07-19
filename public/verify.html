@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email — KP</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page">
+    <div class="card text-center" role="main">
+
+      <div class="brand" style="justify-content:center;">
+        <div class="brand-mark">KP</div>
+        <div>
+          <div class="brand-text">KP</div>
+          <div class="brand-sub">accounts.kp.app</div>
+        </div>
+      </div>
+
+      <!-- Success -->
+      <div id="state-success" style="display:none;">
+        <div class="status-icon success" aria-hidden="true">✓</div>
+        <h1 class="card-title">Email verified!</h1>
+        <p class="card-subtitle">Your KP account is now active. You can sign in to any KP-connected app.</p>
+        <a href="/login" class="btn btn-primary mt-16">Sign in to KP</a>
+      </div>
+
+      <!-- Expired -->
+      <div id="state-expired" style="display:none;">
+        <div class="status-icon error" aria-hidden="true">⏱</div>
+        <h1 class="card-title">Link expired</h1>
+        <p class="card-subtitle">This verification link has expired. Sign up again to receive a new one.</p>
+        <a href="/signup" class="btn btn-secondary mt-16">Back to sign up</a>
+      </div>
+
+      <!-- Invalid -->
+      <div id="state-invalid" style="display:none;">
+        <div class="status-icon error" aria-hidden="true">✕</div>
+        <h1 class="card-title">Invalid link</h1>
+        <p class="card-subtitle">This verification link is invalid or has already been used.</p>
+        <a href="/login" class="btn btn-secondary mt-16">Go to sign in</a>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    const status = new URLSearchParams(window.location.search).get('status');
+    const states = { success: 'state-success', expired: 'state-expired', invalid: 'state-invalid' };
+    const el = document.getElementById(states[status] || 'state-invalid');
+    if (el) el.style.display = 'block';
+  </script>
+</body>
+</html>

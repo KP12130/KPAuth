@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in — KP</title>
+  <meta name="description" content="Sign in to your KP account to continue.">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page">
+    <div class="card" role="main">
+
+      <div class="brand">
+        <div class="brand-mark">KP</div>
+        <div>
+          <div class="brand-text">KP</div>
+          <div class="brand-sub">accounts.kp.app</div>
+        </div>
+      </div>
+
+      <h1 class="card-title">Welcome back</h1>
+      <p class="card-subtitle">Sign in to your KP account to continue.</p>
+
+      <div id="alert-box" class="alert alert-error" role="alert" aria-live="polite">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="alert-text"></span>
+      </div>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="email">Email address</label>
+          <input
+            class="form-input"
+            type="email"
+            id="email"
+            name="email"
+            placeholder="you@example.com"
+            autocomplete="email"
+            required
+          >
+          <div class="field-error" id="email-error"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <div class="input-wrapper">
+            <input
+              class="form-input"
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Your password"
+              autocomplete="current-password"
+              required
+            >
+            <button type="button" class="toggle-password" id="toggle-pass" aria-label="Toggle password visibility">
+              <svg id="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+          <div class="field-error" id="password-error"></div>
+        </div>
+
+        <div class="mt-8"></div>
+
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+          <div class="spinner" aria-hidden="true"></div>
+          <span class="btn-label">Sign in</span>
+        </button>
+      </form>
+
+      <div class="card-footer mt-16">
+        Don't have an account? <a href="/signup" id="signup-link">Create one</a>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Grab query params to pass through the OAuth flow
+    const params = new URLSearchParams(window.location.search);
+    const oauthParams = ['client_id','redirect_uri','scope','state','nonce','code_challenge','code_challenge_method'];
+
+    // Append OAuth params to signup link
+    const signupLink = document.getElementById('signup-link');
+    if (params.has('client_id')) {
+      signupLink.href = '/signup?' + params.toString();
+    }
+
+    // Password toggle
+    const passwordInput = document.getElementById('password');
+    const toggleBtn = document.getElementById('toggle-pass');
+    const eyeOpen = document.getElementById('eye-open');
+    const eyeClosed = document.getElementById('eye-closed');
+
+    toggleBtn.addEventListener('click', () => {
+      const isText = passwordInput.type === 'text';
+      passwordInput.type = isText ? 'password' : 'text';
+      eyeOpen.style.display = isText ? 'block' : 'none';
+      eyeClosed.style.display = isText ? 'none' : 'block';
+    });
+
+    // Form submission
+    const form = document.getElementById('login-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const alertBox = document.getElementById('alert-box');
+    const alertText = document.getElementById('alert-text');
+
+    function showAlert(msg, type = 'error') {
+      alertBox.className = `alert alert-${type} show`;
+      alertText.textContent = msg;
+    }
+
+    function hideAlert() {
+      alertBox.className = 'alert alert-error';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert();
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email) { showAlert('Please enter your email address.'); return; }
+      if (!password) { showAlert('Please enter your password.'); return; }
+
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include',
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (data.error === 'email_not_verified') {
+            showAlert('Please verify your email before signing in. Check your inbox.');
+          } else {
+            showAlert(data.message || 'Invalid email or password.');
+          }
+          return;
+        }
+
+        // If this is an OAuth flow, redirect to consent
+        if (params.has('client_id')) {
+          const consentUrl = '/consent?' + params.toString();
+          window.location.href = consentUrl;
+        } else {
+          // Direct login — go to account page
+          window.location.href = '/account';
+        }
+      } catch {
+        showAlert('Connection error. Please try again.');
+      } finally {
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

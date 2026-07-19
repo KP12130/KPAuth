@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: kp-auth
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BASE_URL
+        fromService:
+          type: web
+          name: kp-auth
+          property: host
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: REFRESH_TOKEN_EXPIRES_DAYS
+        value: 30
+      - key: DB_PATH
+        value: /var/data/kp-auth.db
+      # Set these manually in Render dashboard:
+      # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_FROM_NAME
+
+disk:
+  name: kp-auth-data
+  mountPath: /var/data
+  sizeGB: 1

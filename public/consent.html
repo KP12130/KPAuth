@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authorize — KP</title>
+  <meta name="description" content="Authorize an application to access your KP account.">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page">
+    <div class="card" role="main">
+
+      <div class="brand">
+        <div class="brand-mark">KP</div>
+        <div>
+          <div class="brand-text">KP</div>
+          <div class="brand-sub">accounts.kp.app</div>
+        </div>
+      </div>
+
+      <div id="loading-state" style="text-align:center;padding:20px 0;color:var(--text-muted);font-size:14px;">
+        Loading...
+      </div>
+
+      <div id="main-content" style="display:none;">
+        <h1 class="card-title" id="consent-title">Allow access</h1>
+        <p class="card-subtitle" id="consent-subtitle">wants to access your KP account.</p>
+
+        <!-- The requesting app -->
+        <div class="app-card">
+          <div class="app-logo" id="app-logo">🔗</div>
+          <div>
+            <div class="app-info-name" id="app-name">Loading...</div>
+            <div class="app-info-desc" id="app-desc">Application</div>
+          </div>
+        </div>
+
+        <!-- Logged in as -->
+        <div class="user-badge">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <span>Signing in as <strong id="user-email">loading...</strong></span>
+          <a href="/api/logout" style="margin-left:auto;font-size:12px;color:var(--text-muted);text-decoration:none;" id="switch-link">Switch</a>
+        </div>
+
+        <!-- Requested permissions -->
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;font-weight:500;">This app will be able to:</p>
+        <ul class="scopes-list" id="scopes-list"></ul>
+
+        <!-- Hidden form to POST consent -->
+        <form id="consent-form" method="POST" action="/oauth/consent">
+          <input type="hidden" name="client_id" id="f-client-id">
+          <input type="hidden" name="redirect_uri" id="f-redirect-uri">
+          <input type="hidden" name="scope" id="f-scope">
+          <input type="hidden" name="state" id="f-state">
+          <input type="hidden" name="nonce" id="f-nonce">
+          <input type="hidden" name="code_challenge" id="f-code-challenge">
+          <input type="hidden" name="code_challenge_method" id="f-code-challenge-method">
+          <input type="hidden" name="action" id="f-action">
+
+          <div class="consent-actions">
+            <button type="button" class="btn btn-danger" id="deny-btn">
+              <span class="btn-label">Deny</span>
+            </button>
+            <button type="button" class="btn btn-primary" id="allow-btn">
+              <div class="spinner" aria-hidden="true"></div>
+              <span class="btn-label">Allow access</span>
+            </button>
+          </div>
+        </form>
+
+        <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:14px;line-height:1.5;">
+          By allowing, this app will access your account until you revoke access.<br>
+          You can manage connected apps at any time.
+        </p>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+
+    const SCOPE_DESCRIPTIONS = {
+      openid:  { icon: '🔑', label: 'Verify your identity' },
+      email:   { icon: '✉️', label: 'View your email address' },
+      profile: { icon: '👤', label: 'View your name and profile info' },
+    };
+
+    async function init() {
+      const clientId = params.get('client_id');
+      const redirectUri = params.get('redirect_uri');
+      const scope = params.get('scope') || 'openid email profile';
+      const state = params.get('state') || '';
+      const nonce = params.get('nonce') || '';
+      const codeChallenge = params.get('code_challenge') || '';
+      const codeChallengeMethod = params.get('code_challenge_method') || '';
+
+      if (!clientId) {
+        document.getElementById('loading-state').textContent = 'Invalid authorization request.';
+        return;
+      }
+
+      // Populate hidden form fields
+      document.getElementById('f-client-id').value = clientId;
+      document.getElementById('f-redirect-uri').value = redirectUri;
+      document.getElementById('f-scope').value = scope;
+      document.getElementById('f-state').value = state;
+      document.getElementById('f-nonce').value = nonce;
+      document.getElementById('f-code-challenge').value = codeChallenge;
+      document.getElementById('f-code-challenge-method').value = codeChallengeMethod;
+
+      // Fetch user info
+      try {
+        const meRes = await fetch('/api/me', { credentials: 'include' });
+        if (!meRes.ok) {
+          window.location.href = '/login?' + params.toString();
+          return;
+        }
+        const me = await meRes.json();
+        const initials = me.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+        document.getElementById('user-avatar').textContent = initials;
+        document.getElementById('user-email').textContent = me.email;
+      } catch {
+        window.location.href = '/login?' + params.toString();
+        return;
+      }
+
+      // Fetch client info
+      try {
+        const clientRes = await fetch(`/api/client-info?client_id=${encodeURIComponent(clientId)}`);
+        if (clientRes.ok) {
+          const client = await clientRes.json();
+          document.getElementById('app-name').textContent = client.name;
+          document.getElementById('app-desc').textContent = client.description || 'Third-party application';
+          document.getElementById('consent-title').textContent = `Allow ${client.name}`;
+          document.getElementById('consent-subtitle').textContent = `${client.name} wants to access your KP account.`;
+          if (client.logo_url) {
+            document.getElementById('app-logo').innerHTML = `<img src="${client.logo_url}" alt="${client.name} logo">`;
+          } else {
+            document.getElementById('app-logo').textContent = client.name[0].toUpperCase();
+          }
+        }
+      } catch {
+        // Non-fatal — use fallback text
+      }
+
+      // Build scopes list
+      const scopeList = document.getElementById('scopes-list');
+      scope.split(' ').forEach(s => {
+        const info = SCOPE_DESCRIPTIONS[s];
+        if (!info) return;
+        const li = document.createElement('li');
+        li.innerHTML = `<div class="scope-icon">${info.icon}</div><span>${info.label}</span>`;
+        scopeList.appendChild(li);
+      });
+
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('main-content').style.display = 'block';
+
+      // Switch account
+      document.getElementById('switch-link').href = `/login?${params.toString()}`;
+
+      // Consent actions
+      document.getElementById('allow-btn').addEventListener('click', () => {
+        document.getElementById('f-action').value = 'allow';
+        document.getElementById('allow-btn').classList.add('loading');
+        document.getElementById('consent-form').submit();
+      });
+
+      document.getElementById('deny-btn').addEventListener('click', () => {
+        document.getElementById('f-action').value = 'deny';
+        document.getElementById('consent-form').submit();
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
